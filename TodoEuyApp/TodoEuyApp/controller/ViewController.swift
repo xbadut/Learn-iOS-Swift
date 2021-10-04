@@ -6,13 +6,14 @@
 //
 
 import UIKit
+import CoreData
 
 class ViewController: UITableViewController {
     
     var listArray: [Item] = []
     
-    let dataFile = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
-    
+    let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
+        
     override func viewDidLoad() {
         super.viewDidLoad()
         loadData()
@@ -26,7 +27,9 @@ class ViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add", style: .default) { _ in
             
-            let item = Item(title: textField.text!)
+            let item = Item(context: self.viewContext)
+            item.title = textField.text
+            item.check = false
             
             self.listArray.append(item)
             
@@ -71,26 +74,44 @@ class ViewController: UITableViewController {
     
     func saveData() {
         do {
-            let encoder = PropertyListEncoder()
-            let data = try encoder.encode(listArray)
-            try data.write(to: dataFile!)
+            try viewContext.save()
         } catch {
             print(error)
         }
+        
         tableView.reloadData()
     }
     
-    func loadData() {
+    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
         do {
-            if let data = try? Data(contentsOf: dataFile!) {
-                let decoder = PropertyListDecoder()
-                self.listArray = try decoder.decode([Item].self, from: data)
-            }
+            listArray = try viewContext.fetch(request)
         } catch {
             print(error)
-            
         }
         tableView.reloadData()
     }
 }
 
+extension ViewController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        
+        request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+        
+        loadData(with: request)
+    }
+        
+        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if(searchText.count == 0) {
+            loadData()
+            
+            searchBar.resignFirstResponder()
+
+        }
+    }
+    
+}
