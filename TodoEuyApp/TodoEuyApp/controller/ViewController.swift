@@ -10,13 +10,19 @@ import CoreData
 
 class ViewController: UITableViewController {
     
+    
+    var selectedCategory: Category? {
+        didSet {
+            loadData()
+        }
+    }
+    
     var listArray: [Item] = []
     
     let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-        
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        loadData()
     }
     
     @IBAction func addTodoEuy(_ sender: UIBarButtonItem) {
@@ -30,6 +36,7 @@ class ViewController: UITableViewController {
             let item = Item(context: self.viewContext)
             item.title = textField.text
             item.check = false
+            item.parrentCategory = self.selectedCategory!
             
             self.listArray.append(item)
             
@@ -82,7 +89,16 @@ class ViewController: UITableViewController {
         tableView.reloadData()
     }
     
-    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
+    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) {
+        
+        let isEqualCategory = NSPredicate(format: "parrentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let safePredicate = predicate {
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [isEqualCategory, safePredicate])
+        } else {
+            request.predicate = isEqualCategory
+        }
+        
         do {
             listArray = try viewContext.fetch(request)
         } catch {
@@ -98,19 +114,19 @@ extension ViewController: UISearchBarDelegate {
         
         let request: NSFetchRequest<Item> = Item.fetchRequest()
         
-        request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
         
         request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
         
-        loadData(with: request)
+        loadData(with: request, predicate: predicate)
     }
-        
-        func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         if(searchText.count == 0) {
             loadData()
             
             searchBar.resignFirstResponder()
-
+            
         }
     }
     
