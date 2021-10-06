@@ -6,10 +6,11 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class ViewController: UITableViewController {
     
+    let realm = try! Realm()
     
     var selectedCategory: Category? {
         didSet {
@@ -17,9 +18,8 @@ class ViewController: UITableViewController {
         }
     }
     
-    var listArray: [Item] = []
+    var items: Results<Item>?
     
-    let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -33,14 +33,12 @@ class ViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add", style: .default) { _ in
             
-            let item = Item(context: self.viewContext)
-            item.title = textField.text
+            let item = Item()
+            item.title = textField.text!
             item.check = false
-            item.parrentCategory = self.selectedCategory!
+            item.date = Date.now
             
-            self.listArray.append(item)
-            
-            self.saveData()
+            self.saveData(item: item)
         }
         
         alert.addTextField { textFieldAlert in
@@ -55,33 +53,48 @@ class ViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return listArray.count
+        return items?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        
         let cell = tableView.dequeueReusableCell(withIdentifier: "TodoEuyCell", for: indexPath)
         
-        let item = listArray[indexPath.row]
-        
-        cell.textLabel?.text = item.title
-        
-        cell.accessoryType = item.check ? .checkmark : .none
+        if let item = items?[indexPath.row] {
+            
+            cell.textLabel?.text = item.title
+            
+            cell.accessoryType = item.check ? .checkmark : .none
+        } else {
+            cell.textLabel?.text = "Empty items"
+        }
         
         return cell
     }
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        listArray[indexPath.row].check = !listArray[indexPath.row].check
+        if let safeCategory = selectedCategory {
+            do {
+                try realm.write {
+                    safeCategory.items[indexPath.row].check = !safeCategory.items[indexPath.row].check
+                }
+            } catch {
+                print("eerror")
+            }
+        }
         
-        saveData()
+        self.tableView.reloadData()
         
         tableView.deselectRow(at: indexPath, animated: true)
     }
     
-    func saveData() {
+    
+    func saveData(item: Item) {
         do {
-            try viewContext.save()
+            try realm.write {
+                selectedCategory?.items.append(item)
+            }
         } catch {
             print(error)
         }
@@ -89,21 +102,10 @@ class ViewController: UITableViewController {
         tableView.reloadData()
     }
     
-    func loadData(with request: NSFetchRequest<Item> = Item.fetchRequest(), predicate: NSPredicate? = nil) {
+    func loadData() {
         
-        let isEqualCategory = NSPredicate(format: "parrentCategory.name MATCHES %@", selectedCategory!.name!)
+        items = selectedCategory?.items.sorted(byKeyPath: "date", ascending: true)
         
-        if let safePredicate = predicate {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [isEqualCategory, safePredicate])
-        } else {
-            request.predicate = isEqualCategory
-        }
-        
-        do {
-            listArray = try viewContext.fetch(request)
-        } catch {
-            print(error)
-        }
         tableView.reloadData()
     }
 }
@@ -112,21 +114,20 @@ extension ViewController: UISearchBarDelegate {
     
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         
-        let request: NSFetchRequest<Item> = Item.fetchRequest()
+        let predicate = NSPredicate(format: "title CONTAINS [cd] %@", argumentArray: [searchBar.text!])
         
-        let predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+        items = selectedCategory?.items.filter(predicate).sorted(byKeyPath: "date", ascending: true)
         
-        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
-        
-        loadData(with: request, predicate: predicate)
+        tableView.reloadData()
     }
     
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        
         if(searchText.count == 0) {
+            
             loadData()
             
             searchBar.resignFirstResponder()
-            
         }
     }
     

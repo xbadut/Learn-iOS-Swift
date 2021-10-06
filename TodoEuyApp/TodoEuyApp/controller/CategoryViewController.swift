@@ -6,20 +6,19 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
 class CategoryViewController: UITableViewController {
     
-    var listArray = [Category]()
+    let realm = try! Realm()
     
-    let viewContext = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-
-
+    var categories: Results<Category>?
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         loadData()
     }
-
+    
     @IBAction func addCategory(_ sender: UIBarButtonItem) {
         
         var textField = UITextField()
@@ -28,14 +27,11 @@ class CategoryViewController: UITableViewController {
         
         let action = UIAlertAction(title: "Add", style: .default) { _ in
             
-            let category = Category(context: self.viewContext)
+            let category = Category()
             
-            category.name = textField.text
+            category.name = textField.text!
             
-            self.listArray.append(category)
-            
-            self.saveData()
-            
+            self.saveData(category: category)
         }
         
         alert.addTextField { textFieldAlert in
@@ -50,22 +46,24 @@ class CategoryViewController: UITableViewController {
     
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return listArray.count
+        return categories?.count ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "categoryCell", for: indexPath)
         
-        let item = listArray[indexPath.row]
+        if let item = categories?[indexPath.row] {
+            cell.textLabel?.text = item.name
+        } else {
+            cell.textLabel?.text = "Empty category"
+        }
         
-        cell.textLabel?.text = item.name
-                
         return cell
     }
     
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-
+        
         performSegue(withIdentifier: "GoToDetail", sender: self)
         
         tableView.deselectRow(at: indexPath, animated: true)
@@ -74,21 +72,23 @@ class CategoryViewController: UITableViewController {
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "GoToDetail" {
-    
+            
             if let safeIndex = tableView.indexPathForSelectedRow?.row {
                 
                 let vc = segue.destination as! ViewController
                 
-                vc.selectedCategory = listArray[safeIndex]
-
+                vc.selectedCategory = categories?[safeIndex]
+                
             }
         }
     }
     
     
-    func saveData() {
+    func saveData(category: Category) {
         do {
-            try viewContext.save()
+            try realm.write {
+                realm.add(category)
+            }
         } catch {
             print(error)
         }
@@ -96,12 +96,9 @@ class CategoryViewController: UITableViewController {
         tableView.reloadData()
     }
     
-    func loadData(with request: NSFetchRequest<Category> = Category.fetchRequest()) {
-        do {
-            listArray = try viewContext.fetch(request)
-        } catch {
-            print(error)
-        }
+    func loadData() {
+        categories = realm.objects(Category.self)
+        
         tableView.reloadData()
     }
 }
