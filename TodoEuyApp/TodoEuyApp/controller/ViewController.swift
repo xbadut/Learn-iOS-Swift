@@ -74,10 +74,10 @@ class ViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
-        if let safeCategory = selectedCategory {
+        if let item = items?[indexPath.row] {
             do {
                 try realm.write {
-                    safeCategory.items[indexPath.row].check = !safeCategory.items[indexPath.row].check
+                    item.check = item.check
                 }
             } catch {
                 print("eerror")
